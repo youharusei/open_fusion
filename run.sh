@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=2 /home/ycs/.conda/envs/open_fusion/bin/python main.py --data icl --scene kt3 --device cuda:0

@@ -362,7 +362,7 @@ class VLState(BaseState):
         block_count = 100000,
         device = "CUDA:0",
         img_size = (640, 480),
-        num_obj_points_per_block = 16, # increase if you have more memory
+        num_obj_points_per_block = 32, # increase if you have more memory
         matcher=None
     ) -> None:
         super().__init__(

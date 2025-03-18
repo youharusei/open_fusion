@@ -9,9 +9,12 @@ cache/*
 */cache*/
 tmp*.py
 *pickle
-sample/*
-icl_*/*
+sample
+icl_*
 openfusion/zoo/xdecoder_seem/checkpoints/*
+
+# added by ycs
+openai
 
 # compiled files #
 *.pyc
