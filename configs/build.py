@@ -1,5 +1,5 @@
 import os.path as osp
-from openfusion.datasets import ICL, Replica, ScanNet, Kobuki, Live
+from openfusion.datasets import ICL, Replica, ScanNet, Kobuki, Live, RGBD
 
 BASE_PATH = osp.dirname(osp.dirname(osp.abspath(__file__)))
 
@@ -58,6 +58,17 @@ PARAMS = {
         "block_count": 100000, # will be increased automatically if needed
         "img_size": (640,360),
         "input_size": (640,360)
+    },
+    "rgbd": {
+        "dataset": RGBD,
+        "path": "{}/sample/rgbd/{}",
+        "depth_scale": 1000.0,
+        "depth_max": 10.0,
+        "voxel_size": 10.0 / 512,
+        "block_resolution": 8,
+        "block_count": 1000000,
+        "img_size": (640,480),
+        "input_size": (640,480)
     },
 }
 

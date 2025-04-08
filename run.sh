@@ -1,1 +1,2 @@
-CUDA_VISIBLE_DEVICES=2 /home/ycs/.conda/envs/open_fusion/bin/python main.py --data icl --scene kt3 --device cuda:0
+# CUDA_VISIBLE_DEVICES=2 /home/ycs/.conda/envs/open_fusion/bin/python main.py --data icl --scene kt3 --device cuda:0
+CUDA_VISIBLE_DEVICES=3 /home/ycs/.conda/envs/open_fusion/bin/python main.py --data rgbd --scene wuhu_1 --device cuda:0 --save true

@@ -174,3 +174,38 @@ class Live(Dataset):
             pose_matrix = np.loadtxt(file)
             extrinsics.append(pose_matrix)
         return extrinsics
+
+class RGBD(Dataset):
+    def scenes(self):
+        return ["wuhu_1", "k114"]
+
+    def load_intrinsics(self, img_size, input_size):
+        return super().load_intrinsics(self.data_path + "/../intrinsics.txt", img_size, input_size)
+
+    def load_pose(self):
+        with open(self.data_path + "/poses.txt", "r") as f:
+            lines = f.readlines()
+
+        pose_arr = []
+        for line in lines:
+            line = line.strip().split()
+            if len(line) == 0:
+                continue
+            pose_arr.append(
+                np.asarray(
+                    [float(line[0]), float(line[1]), float(line[2]), float(line[3])]
+                )
+            )
+        pose_arr = np.stack(pose_arr)
+
+        extrinsics = []
+        for pose_line_idx in range(0, pose_arr.shape[0], 3):
+            curpose = np.zeros((4, 4))
+            curpose[3, 3] = 1
+            curpose[0] = pose_arr[pose_line_idx]
+            curpose[1] = pose_arr[pose_line_idx + 1]
+            curpose[2] = pose_arr[pose_line_idx + 2]
+            extrinsics.append(curpose)
+
+        return [np.linalg.inv(e.astype(np.float64)) for e in
+                preprocess_extrinsics(extrinsics)]
