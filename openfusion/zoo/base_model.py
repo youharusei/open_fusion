@@ -67,7 +67,7 @@ class RegionAlignedModel(VLFM):
             opt = init_distributed(opt)
             self.model = BaseModel(opt, build_model(opt)).from_pretrained(
                 self.meta["checkpoint"]
-            ).eval().cuda()
+            ).eval().to("cuda:1")
             self.model.init_vocabulary()
         else:
             raise NotImplementedError
@@ -97,7 +97,7 @@ class RegionAlignedModel(VLFM):
     def encode_image(self, rgb, mode="default"):
         rgb_images = self.preprocess_image(rgb)
         assert rgb_images.shape[1] == 3
-        return self.model(rgb_images, mode)
+        return self.model(rgb_images.to("cuda:1"), mode)
 
 
 class PixelAlignedModel(VLFM):

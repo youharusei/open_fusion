@@ -330,7 +330,7 @@ class VLSLAM(BaseSLAM):
 
     @torch.no_grad()
     def semantic_query(
-        self, query:List[str], points:np.array=None, colors:np.array=None, cmap=None, n_points=500000
+        self, query:List[str], points:np.array=None, colors:np.array=None, cmap=None, n_points=-1
     ):
         """ perform semantic segmentation on the point cloud
         Args:
@@ -338,7 +338,7 @@ class VLSLAM(BaseSLAM):
             points (np.array, optional): points to query. Defaults to None.
             colors (np.array, optional): original color of points. Defaults to None.
             cmap (_type_, optional): colormap to use. Defaults to None.
-            n_points (int, optional): number of points to query. -1 to select all. Defaults to 500000.
+            n_points (int, optional): number of points to query. -1 to select all.
 
         Returns:
             points (np.array): xyz coordinates
@@ -446,7 +446,7 @@ def build_slam(args, intrinsic, params):
         point_state = VLState(
             intrinsic, params["depth_scale"], params["depth_max"],
             params["voxel_size"], params["block_resolution"], params["block_count"],
-            device=args.device.upper(), img_size=params["input_size"],
+            device_tsdf=args.device.upper(), img_size=params["input_size"],
             matcher=HungarianMatcher(num_points=3600)
         )
         return VLSLAM(intrinsic, io, point_state, with_pose, params["input_size"], vl_model)

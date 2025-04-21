@@ -92,7 +92,7 @@ class LanguageEncoder(nn.Module):
                     tokens = self.tokenizer(
                         txts, padding='max_length', truncation=True, max_length=self.max_token_num, return_tensors='pt'
                     )
-                    clss_embedding = self.forward_language((tokens['input_ids'].cuda(), tokens['attention_mask'].cuda()), norm=norm)
+                    clss_embedding = self.forward_language((tokens['input_ids'].to("cuda:1"), tokens['attention_mask'].to("cuda:1")), norm=norm)
                     clss_embedding = clss_embedding.mean(dim=0)
                     clss_embedding /= clss_embedding.norm()
                     return clss_embedding
@@ -121,7 +121,7 @@ class LanguageEncoder(nn.Module):
             tokens = {key: value.cuda() for key, value in tokens.items()}
         else:
             tokens = txts
-        token_emb, class_emb = self.forward_language_token((tokens['input_ids'], tokens['attention_mask']), norm=norm)
+        token_emb, class_emb = self.forward_language_token((tokens['input_ids'].to("cuda:1"), tokens['attention_mask'].to("cuda:1")), norm=norm)
         ret = {"tokens": tokens,
                 "token_emb": token_emb,
                 "class_emb": class_emb,}

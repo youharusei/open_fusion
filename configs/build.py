@@ -63,10 +63,10 @@ PARAMS = {
         "dataset": RGBD,
         "path": "{}/sample/rgbd/{}",
         "depth_scale": 1000.0,
-        "depth_max": 10.0,
-        "voxel_size": 10.0 / 512,
+        "depth_max": 4.0,
+        "voxel_size": 0.015,
         "block_resolution": 8,
-        "block_count": 1000000,
+        "block_count": int(4e6),
         "img_size": (640,480),
         "input_size": (640,480)
     },

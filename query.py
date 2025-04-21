@@ -20,8 +20,8 @@ def main():
     c = Client()
 
     while True:
-        query = input("[*] enter query: ")
-        if query == "q":
+        query = input("[enter 'exit' to end] enter query: ")
+        if query == "exit":
             break
         c.send(query)
     c.close()

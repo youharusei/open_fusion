@@ -11,6 +11,7 @@ from openfusion.utils import (
 )
 from configs.build import get_config
 
+import rospy
 
 def stream_loop(args, slam:BaseSLAM):
     if args.save:
@@ -53,66 +54,30 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--algo', type=str, default="vlfusion", choices=["default", "cfusion", "vlfusion"])
     parser.add_argument('--vl', type=str, default="seem", help="vlfm to use")
-    parser.add_argument('--data', type=str, default="kobuki", help='Path to dir of dataset.')
-    parser.add_argument('--scene', type=str, default="icra", help='Name of the scene in the dataset.')
+    parser.add_argument('--data', type=str, default="rgbd", help='Path to dir of dataset.')
+    parser.add_argument('--scene', type=str, default="wuhu_1", help='Name of the scene in the dataset.')
     parser.add_argument('--frames', type=int, default=-1, help='Total number of frames to use. If -1, use all frames.')
     parser.add_argument('--device', type=str, default="cuda")
     parser.add_argument('--live', action='store_true')
     parser.add_argument('--stream', action='store_true')
     parser.add_argument('--save', type=bool, default=False)
-    parser.add_argument('--load', type=bool, default=False)
+    parser.add_argument('--load', type=bool, default=True)
     parser.add_argument('--host_ip', type=str, default="YOUR IP") # for stream
     args = parser.parse_args()
-
-    if args.stream:
-        args.scene = "live"
-        if not os.path.exists(f"sample/{args.data}"):
-            os.mkdir(f"sample/{args.data}")
-            raise ValueError(f"[*] please place the intrinsic.txt inside `sample/{args.data}/`.")
-        if not os.path.exists(f"sample/{args.data}/live"):
-            os.mkdir(f"sample/{args.data}/live")
 
     params = get_config(args.data, args.scene)
     dataset:Dataset = params["dataset"](params["path"], args.frames, args.stream)
     intrinsic = dataset.load_intrinsics(params["img_size"], params["input_size"])
     slam = build_slam(args, intrinsic, params)
 
-    # NOTE: real-time semantic map construction
-    if not os.path.exists(f"{args.data}_{args.scene}"):
-        os.makedirs(f"{args.data}_{args.scene}")
-    if args.load:
-        if os.path.exists(f"{args.data}_{args.scene}/{args.algo}.npz"):
-            print("[*] loading saved state...")
-            slam.point_state.load(f"{args.data}_{args.scene}/{args.algo}.npz")
-        else:
-            print("[*] no saved state found, skipping...")
+    if os.path.exists(f"{args.data}_{args.scene}/{args.algo}.npz"):
+        print("[*] loading saved state...")
+        slam.point_state.load(f"{args.data}_{args.scene}/{args.algo}.npz")
     else:
-        if args.stream:
-            stream_loop(args, slam)
-        else:
-            dataset_loop(args, slam, dataset)
-            if args.save:
-                slam.save(f"{args.data}_{args.scene}/{args.algo}.npz")
+        print("[*] no saved state found, skipping...")
 
-    # NOTE: save point cloud
-    points, colors = slam.point_state.get_pc()
-    save_pc(points, colors, f"{args.data}_{args.scene}/color_pc.ply")
-
-    # NOTE: save colorized mesh
-    # mesh = slam.point_state.get_mesh()
-    # o3d.io.write_triangle_mesh(f"{args.data}_{args.scene}/color_mesh.ply", mesh)
-    # o3d.io.write_triangle_mesh(f"{args.data}_{args.scene}/color_mesh.glb", mesh)
-
-    # NOTE: modify below to play with query
-    if args.algo in ["cfusion", "vlfusion"]:
-        # points, colors = slam.query("Window", topk=3)
-        # points, colors = slam.query("there is a stainless steel fridge in the ketchen", topk=3)
-        points, colors = slam.semantic_query([
-            "table", "curtain", "wall", "floor", "ceiling", "door",
-            "room plant", "light", "wall paint", "chair", "person",
-            "road", "machine"], n_points=-1)
-        # show_pc(points, colors, slam.point_state.poses)
-        save_pc(points, colors, f"{args.data}_{args.scene}/semantic_pc.ply")
+    rospy.init_node("goal_location_server_node")
+    service = rospy.Service("goal_location_query",)
 
 if __name__ == "__main__":
     main()

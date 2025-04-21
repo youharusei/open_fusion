@@ -25,12 +25,14 @@ class BaseState(object):
         voxel_size = 5.0 / 512,
         block_resolution = 8,
         block_count = 100000,
-        device = "CUDA:0",
+        device_tsdf = "CUDA:0",
+        device_torch = "cuda:1",
         img_size=(640, 480)
     ) -> None:
         self.timestamp = None
         self.img_size = img_size
-        self.device = o3c.Device(device)
+        self.device_tsdf = o3c.Device(device_tsdf)
+        self.device_torch = device_torch
         self.depth_scale = depth_scale
         self.depth_max = depth_max
         self.voxel_size = voxel_size
@@ -39,13 +41,14 @@ class BaseState(object):
         self.intrinsic_np = intrinsic
         self.intrinsic = o3c.Tensor.from_numpy(intrinsic)
         self.world = o3d.t.geometry.VoxelBlockGrid(
-            ('tsdf', 'weight', 'color'),
-            (o3c.float32, o3c.float32, o3c.float32),
-            ((1), (1), (3)),
-            self.voxel_size,
-            block_resolution,
-            block_count, device=self.device
-        )
+            attr_names=('tsdf', 'weight', 'color'),
+            attr_dtypes=(o3c.float32, o3c.float32, o3c.float32),
+            attr_channels=((1), (1), (3)),
+            voxel_size=self.voxel_size,
+            block_resolution=self.block_resolution,
+            block_count=block_count, 
+            device=self.device_tsdf
+            )
         self.rgb_buffer = []
         self.depth_buffer = []
         self.poses_buffer = []
@@ -104,7 +107,8 @@ class BaseState(object):
         return self.poses[-1]
 
     def get_mesh(self, legacy=True):
-        mesh = self.world.extract_triangle_mesh()
+        world = self.world.cpu()
+        mesh = world.extract_triangle_mesh()
         return mesh.to_legacy() if legacy else mesh
 
     def get_pc(self, n=-1):
@@ -171,16 +175,18 @@ class BaseState(object):
             coords (torch.Tensor): shape of (N, 3)
             mask (torch.Tensor): shape of (H, W)
         """
+        device_torch = "cuda:1"
         depth = torch.from_numpy(depth.astype(np.int32)) / depth_scale
         depth = F.interpolate(
             depth.unsqueeze(0).unsqueeze(0).float(),
             (image_height, image_width)
-        ).view(image_height, image_width).cuda()
-        extrinsic = torch.utils.dlpack.from_dlpack(extrinsic.to_dlpack()).cuda().float()
-        intrinsic = torch.utils.dlpack.from_dlpack(intrinsic.to_dlpack()).cuda().float()
+        ).view(image_height, image_width).to(device_torch)
+        extrinsic = torch.utils.dlpack.from_dlpack(extrinsic.to_dlpack()).to(device_torch).float()
+        intrinsic = torch.utils.dlpack.from_dlpack(intrinsic.to_dlpack()).to(device_torch).float()
         fx, fy, cx, cy = intrinsic[0, 0], intrinsic[1, 1], intrinsic[0, 2], intrinsic[1, 2]
 
-        v, u = torch.meshgrid(torch.arange(image_height).cuda(), torch.arange(image_width).cuda(), indexing="ij")
+        v, u = torch.meshgrid(torch.arange(image_height, device=device_torch), 
+                              torch.arange(image_width, device=device_torch), indexing="ij")
         uvd = torch.stack([u, v, torch.ones_like(depth)], dim=0).float() # (3,H,W)
         # NOTE: don't use torch.inverse(intrinsic) as it is slow
         uvd[0] = (uvd[0] - cx) / fx
@@ -192,7 +198,7 @@ class BaseState(object):
         coords =  (R @ xyz - R @ extrinsic[:3, 3:]).view(3, image_height, image_width).permute(1,2,0)
         mask = [(0 < depth) & (depth < depth_max)]
         # TODO: check 0.05 offset for +y direction (up)
-        return coords[mask] + torch.tensor([[0,0.05,0]], device="cuda"), mask
+        return coords[mask] + torch.tensor([[0,0.05,0]], device=device_torch), mask
 
     @staticmethod
     def get_points_in_fov(coords, extrinsic, intrinsic, image_width, image_height, depth_max):
@@ -210,9 +216,10 @@ class BaseState(object):
             d_proj (torch.Tensor): shape of (M)
             mask_proj (torch.Tensor): shape of (N)
         """
-        coords = torch.utils.dlpack.from_dlpack(coords.to_dlpack()).cuda().float()
-        extrinsic = torch.utils.dlpack.from_dlpack(extrinsic.to_dlpack()).cuda().float()
-        intrinsic = torch.utils.dlpack.from_dlpack(intrinsic.to_dlpack()).cuda().float()
+        device_torch = "cuda:1"
+        coords = torch.utils.dlpack.from_dlpack(coords.to_dlpack()).to(device_torch).float()
+        extrinsic = torch.utils.dlpack.from_dlpack(extrinsic.to_dlpack()).to(device_torch).float()
+        intrinsic = torch.utils.dlpack.from_dlpack(intrinsic.to_dlpack()).to(device_torch).float()
 
         # NOTE: apply camera pose
         xyz = extrinsic[:3, :3] @ coords.T + extrinsic[:3, 3:]
@@ -267,8 +274,8 @@ class BaseState(object):
         return buf_coords
 
     def update(self, color, depth, extrinsic):
-        color = o3d.t.geometry.Image(color).to(o3c.uint8).to(self.device)
-        depth = o3d.t.geometry.Image(depth).to(o3c.uint16).to(self.device)
+        color = o3d.t.geometry.Image(color).to(o3c.uint8).to(self.device_tsdf)
+        depth = o3d.t.geometry.Image(depth).to(o3c.uint16).to(self.device_tsdf)
         extrinsic = o3c.Tensor.from_numpy(extrinsic)
 
         # Get active frustum block coordinates from input
@@ -360,20 +367,22 @@ class VLState(BaseState):
         voxel_size = 5.0 / 512,
         block_resolution = 8,
         block_count = 100000,
-        device = "CUDA:0",
+        device_tsdf = "CUDA:0",
+        device_torch = "cuda:1",
         img_size = (640, 480),
         num_obj_points_per_block = 16, # increase if you have more memory
         matcher=None
     ) -> None:
         super().__init__(
             intrinsic, depth_scale, depth_max, voxel_size,
-            block_resolution, block_count, device, img_size
+            block_resolution, block_count, device_tsdf, device_torch, img_size
         )
         # NOTE: number of sampled points in the block
         self.num_obj_points_per_block = num_obj_points_per_block
         self.emb_keys = torch.zeros(block_count, self.num_obj_points_per_block).long()
         self.emb_confs = torch.zeros(block_count, self.num_obj_points_per_block)
         self.emb_coords = torch.zeros(block_count, self.num_obj_points_per_block, 3)
+        self.block_count = block_count
 
         self.active_buf_indices = None
         self.emb_dict = torch.zeros(1, 512)
@@ -430,10 +439,13 @@ class VLState(BaseState):
         voxel_coords, _ = self.world.voxel_coordinates_and_flattened_indices(
             cur_buf_indices
         )
-        cur_buf_indices = torch.utils.dlpack.from_dlpack(cur_buf_indices.to_dlpack())
+        cur_buf_indices = torch.utils.dlpack.from_dlpack(cur_buf_indices.to_dlpack()).to(self.device_torch)
         cur_buf_indices_cpu = cur_buf_indices.cpu()
-        voxel_coords = torch.utils.dlpack.from_dlpack(voxel_coords.to_dlpack())
-
+        voxel_coords = torch.utils.dlpack.from_dlpack(voxel_coords.to_dlpack()).to(self.device_torch)
+        for cur_buf_indice_cpu in cur_buf_indices_cpu:
+            if abs(cur_buf_indice_cpu) > self.block_count:
+                torch.cuda.empty_cache()
+                return
         cur_keys = self.emb_keys[cur_buf_indices_cpu] # (N, O)
         cur_confs = self.emb_confs[cur_buf_indices_cpu] # (N, O)
         cur_coords = self.emb_coords[cur_buf_indices_cpu] # (N, O, 3)
@@ -468,7 +480,7 @@ class VLState(BaseState):
             )
             if len(obs_buf_idx) == 0:
                 torch.cuda.empty_cache()
-                print("[*] nothing can be integrated")
+                # print("[*] nothing can be integrated")
                 return
 
              # NOTE: find the unique buf indices (unique blocks) and their corresponding counts (U,), (N',)
@@ -520,7 +532,7 @@ class VLState(BaseState):
             emb_coords = cur_coords.view(-1, 3)[object_mask] # (P, 3)
             # NOTE: get points in FoV
             v_proj, u_proj, _, mask_proj = self.get_points_in_fov(
-                o3c.Tensor.from_dlpack(torch.utils.dlpack.to_dlpack(emb_coords)).to(self.device, o3c.float32),
+                o3c.Tensor.from_dlpack(torch.utils.dlpack.to_dlpack(emb_coords)).to(self.device_tsdf, o3c.float32),
                 extrinsic, self.custom_intrinsic(width, height), width, height, self.depth_max
             )
             # NOTE: render the features in the Volume
@@ -611,7 +623,7 @@ class VLState(BaseState):
             )
             if len(comb_buf_idx) == 0:
                 torch.cuda.empty_cache()
-                print("[*] nothing can be integrated")
+                # print("[*] nothing can be integrated")
                 return
 
             unique_comb_buf, inverse_comb_ind = torch.unique(comb_buf_idx, return_inverse=True)
@@ -718,7 +730,7 @@ class VLState(BaseState):
             topk (int, optional): take topk similar regions as predication. Defaults to 1.
         """
         buf_indices = self.world.hashmap().active_buf_indices()
-        buf_indices = torch.utils.dlpack.from_dlpack(buf_indices.to_dlpack())
+        buf_indices = torch.utils.dlpack.from_dlpack(buf_indices.to_dlpack()).to(self.device_torch)
 
         mask_key = self.emb_keys[
             buf_indices.cpu()
@@ -916,7 +928,7 @@ class CFState(BaseState):
         voxel_coords, _ = self.world.voxel_coordinates_and_flattened_indices(
             cur_buf_indices
         )
-        voxel_coords = torch.utils.dlpack.from_dlpack(voxel_coords.to_dlpack())
+        voxel_coords = torch.utils.dlpack.from_dlpack(voxel_coords.to_dlpack()).to(self.device_torch)
 
         cur_buf_coords = self.buf_coords(cur_buf_indices)
         # sample coords with virtual camera
@@ -951,12 +963,8 @@ class CFState(BaseState):
         t_emb = t_emb / (t_emb.norm(dim=-1, keepdim=True) + 1e-7)
         buf_indices = self.active_buf_indices()
         buf_coords = self.buf_coords(buf_indices)
-        buf_indices = torch.utils.dlpack.from_dlpack(
-            buf_indices.to_dlpack()
-        )
-        buf_coords = torch.utils.dlpack.from_dlpack(
-            buf_coords.to_dlpack()
-        )
+        buf_indices = torch.utils.dlpack.from_dlpack(buf_indices.to_dlpack()).to(self.device_torch)
+        buf_coords = torch.utils.dlpack.from_dlpack(buf_coords.to_dlpack()).to(self.device_torch)
         embed = self.embed.to(t_emb.device)[buf_indices]
         mask_pred_caption = embed / (embed.norm(dim=-1, keepdim=True) + 1e-7)
         out = torch.einsum("cd,nd->cn", t_emb, mask_pred_caption).flatten().cpu() # (N,)
@@ -991,9 +999,7 @@ class CFState(BaseState):
         t_emb = t_emb / (t_emb.norm(dim=-1, keepdim=True) + 1e-7)
         buf_indices = self.active_buf_indices()
         buf_coords = self.buf_coords(buf_indices)
-        buf_indices = torch.utils.dlpack.from_dlpack(
-            buf_indices.to_dlpack()
-        )
+        buf_indices = torch.utils.dlpack.from_dlpack(buf_indices.to_dlpack()).to(self.device_torch)
         embed = self.embed.to(t_emb.device)[buf_indices]
         mask_pred_caption = embed / (embed.norm(dim=-1, keepdim=True) + 1e-7)
         semseg = torch.einsum("cd,nd->cn", t_emb, mask_pred_caption).argmax(0).cpu().numpy() # (N,)
