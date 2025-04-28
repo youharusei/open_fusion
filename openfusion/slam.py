@@ -442,11 +442,11 @@ def build_slam(args, intrinsic, params):
         return VLSLAM(intrinsic, io, point_state, with_pose, params["input_size"], vl_model, live_mode=False)
     elif args.algo == "vlfusion":
         from .matcher import HungarianMatcher
-        vl_model = build_vl_model(args.vl, input_size=min(360, params["input_size"][1]))
-        point_state = VLState(
+        vl_model = build_vl_model(args.device_torch, args.vl, input_size=min(360, params["input_size"][1]))
+        point_state = VLState(args.load,
             intrinsic, params["depth_scale"], params["depth_max"],
             params["voxel_size"], params["block_resolution"], params["block_count"],
-            device_tsdf=args.device.upper(), img_size=params["input_size"],
+            device_tsdf=args.device_tsdf, device_torch=args.device_torch, img_size=params["input_size"],
             matcher=HungarianMatcher(num_points=3600)
         )
         return VLSLAM(intrinsic, io, point_state, with_pose, params["input_size"], vl_model)

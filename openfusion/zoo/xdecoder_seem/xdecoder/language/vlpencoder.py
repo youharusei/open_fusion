@@ -56,7 +56,7 @@ class LanguageEncoder(nn.Module):
             "max_token_num": max_token_num,
         }
 
-    def get_text_embeddings(self, class_names, name='default', is_eval=False, add_bgd=False, prompt=True, norm=True):
+    def get_text_embeddings(self, class_names, device, name='default', is_eval=False, add_bgd=False, prompt=True, norm=True):
         if not is_eval:
             if prompt:
                 # randomly sample one template
@@ -84,7 +84,7 @@ class LanguageEncoder(nn.Module):
             arbitary_tokens = torch.stack(input_ids)
             arbitary_attention_masks = torch.stack(attention_masks)
 
-            text_emb = self.forward_language((arbitary_tokens.cuda(), arbitary_attention_masks.cuda()), norm=norm)
+            text_emb = self.forward_language((arbitary_tokens.to(device), arbitary_attention_masks.to(device)), norm=norm)
             setattr(self, '{}_text_embeddings'.format(name), text_emb)
         else:
             with torch.no_grad():
@@ -92,7 +92,7 @@ class LanguageEncoder(nn.Module):
                     tokens = self.tokenizer(
                         txts, padding='max_length', truncation=True, max_length=self.max_token_num, return_tensors='pt'
                     )
-                    clss_embedding = self.forward_language((tokens['input_ids'].to("cuda:1"), tokens['attention_mask'].to("cuda:1")), norm=norm)
+                    clss_embedding = self.forward_language((tokens['input_ids'].to(device), tokens['attention_mask'].to(device)), norm=norm)
                     clss_embedding = clss_embedding.mean(dim=0)
                     clss_embedding /= clss_embedding.norm()
                     return clss_embedding
@@ -113,15 +113,15 @@ class LanguageEncoder(nn.Module):
                 text_emb = torch.stack(clss_embeddings, dim=0)
                 setattr(self, '{}_text_embeddings'.format(name), text_emb)
 
-    def get_text_token_embeddings(self, txts, name='default', token=False, norm=False):
+    def get_text_token_embeddings(self, txts, device, name='default', token=False, norm=False):
         if not token:
             tokens = self.tokenizer(
                 txts, padding='max_length', truncation=True, max_length=self.max_token_num, return_tensors='pt'
             )
-            tokens = {key: value.cuda() for key, value in tokens.items()}
+            tokens = {key: value.to(device) for key, value in tokens.items()}
         else:
             tokens = txts
-        token_emb, class_emb = self.forward_language_token((tokens['input_ids'].to("cuda:1"), tokens['attention_mask'].to("cuda:1")), norm=norm)
+        token_emb, class_emb = self.forward_language_token((tokens['input_ids'], tokens['attention_mask']), norm=norm)
         ret = {"tokens": tokens,
                 "token_emb": token_emb,
                 "class_emb": class_emb,}

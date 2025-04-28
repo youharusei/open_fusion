@@ -19,19 +19,20 @@ except:
 class BaseState(object):
     def __init__(
         self,
+        flag_load,
         intrinsic,
         depth_scale,
         depth_max,
         voxel_size = 5.0 / 512,
         block_resolution = 8,
         block_count = 100000,
-        device_tsdf = "CUDA:0",
+        device_tsdf = "cuda:0",
         device_torch = "cuda:1",
         img_size=(640, 480)
     ) -> None:
         self.timestamp = None
         self.img_size = img_size
-        self.device_tsdf = o3c.Device(device_tsdf)
+        self.device_tsdf = o3c.Device(device_tsdf.upper())
         self.device_torch = device_torch
         self.depth_scale = depth_scale
         self.depth_max = depth_max
@@ -40,13 +41,17 @@ class BaseState(object):
         self.block_resolution = block_resolution
         self.intrinsic_np = intrinsic
         self.intrinsic = o3c.Tensor.from_numpy(intrinsic)
+        if flag_load: 
+            block_count_ = 1
+        else :
+            block_count_ = block_count
         self.world = o3d.t.geometry.VoxelBlockGrid(
             attr_names=('tsdf', 'weight', 'color'),
             attr_dtypes=(o3c.float32, o3c.float32, o3c.float32),
             attr_channels=((1), (1), (3)),
             voxel_size=self.voxel_size,
             block_resolution=self.block_resolution,
-            block_count=block_count, 
+            block_count=block_count_, 
             device=self.device_tsdf
             )
         self.rgb_buffer = []
@@ -160,8 +165,8 @@ class BaseState(object):
             bisect.bisect_right(x_, x),
         )
 
-    @staticmethod
-    def depth_to_point_cloud(depth, extrinsic, intrinsic, image_width, image_height, depth_max, depth_scale):
+    # @staticmethod
+    def depth_to_point_cloud(self, depth, extrinsic, intrinsic, image_width, image_height, depth_max, depth_scale):
         """
         Args:
             depth (np.array): depth image
@@ -175,18 +180,17 @@ class BaseState(object):
             coords (torch.Tensor): shape of (N, 3)
             mask (torch.Tensor): shape of (H, W)
         """
-        device_torch = "cuda:1"
         depth = torch.from_numpy(depth.astype(np.int32)) / depth_scale
         depth = F.interpolate(
             depth.unsqueeze(0).unsqueeze(0).float(),
             (image_height, image_width)
-        ).view(image_height, image_width).to(device_torch)
-        extrinsic = torch.utils.dlpack.from_dlpack(extrinsic.to_dlpack()).to(device_torch).float()
-        intrinsic = torch.utils.dlpack.from_dlpack(intrinsic.to_dlpack()).to(device_torch).float()
+        ).view(image_height, image_width).to(self.device_torch)
+        extrinsic = torch.utils.dlpack.from_dlpack(extrinsic.to_dlpack()).to(self.device_torch).float()
+        intrinsic = torch.utils.dlpack.from_dlpack(intrinsic.to_dlpack()).to(self.device_torch).float()
         fx, fy, cx, cy = intrinsic[0, 0], intrinsic[1, 1], intrinsic[0, 2], intrinsic[1, 2]
 
-        v, u = torch.meshgrid(torch.arange(image_height, device=device_torch), 
-                              torch.arange(image_width, device=device_torch), indexing="ij")
+        v, u = torch.meshgrid(torch.arange(image_height, device=self.device_torch), 
+                              torch.arange(image_width, device=self.device_torch), indexing="ij")
         uvd = torch.stack([u, v, torch.ones_like(depth)], dim=0).float() # (3,H,W)
         # NOTE: don't use torch.inverse(intrinsic) as it is slow
         uvd[0] = (uvd[0] - cx) / fx
@@ -198,10 +202,10 @@ class BaseState(object):
         coords =  (R @ xyz - R @ extrinsic[:3, 3:]).view(3, image_height, image_width).permute(1,2,0)
         mask = [(0 < depth) & (depth < depth_max)]
         # TODO: check 0.05 offset for +y direction (up)
-        return coords[mask] + torch.tensor([[0,0.05,0]], device=device_torch), mask
+        return coords[mask] + torch.tensor([[0,0.05,0]], device=self.device_torch), mask
 
-    @staticmethod
-    def get_points_in_fov(coords, extrinsic, intrinsic, image_width, image_height, depth_max):
+    # @staticmethod
+    def get_points_in_fov(self, coords, extrinsic, intrinsic, image_width, image_height, depth_max):
         """
         Args:
             coords (o3c.Tensor): shape of (N, 3)
@@ -216,10 +220,9 @@ class BaseState(object):
             d_proj (torch.Tensor): shape of (M)
             mask_proj (torch.Tensor): shape of (N)
         """
-        device_torch = "cuda:1"
-        coords = torch.utils.dlpack.from_dlpack(coords.to_dlpack()).to(device_torch).float()
-        extrinsic = torch.utils.dlpack.from_dlpack(extrinsic.to_dlpack()).to(device_torch).float()
-        intrinsic = torch.utils.dlpack.from_dlpack(intrinsic.to_dlpack()).to(device_torch).float()
+        coords = torch.utils.dlpack.from_dlpack(coords.to_dlpack()).to(self.device_torch).float()
+        extrinsic = torch.utils.dlpack.from_dlpack(extrinsic.to_dlpack()).to(self.device_torch).float()
+        intrinsic = torch.utils.dlpack.from_dlpack(intrinsic.to_dlpack()).to(self.device_torch).float()
 
         # NOTE: apply camera pose
         xyz = extrinsic[:3, :3] @ coords.T + extrinsic[:3, 3:]
@@ -361,19 +364,20 @@ class BaseState(object):
 class VLState(BaseState):
     def __init__(
         self,
+        flag_load,
         intrinsic,
         depth_scale,
         depth_max,
         voxel_size = 5.0 / 512,
         block_resolution = 8,
         block_count = 100000,
-        device_tsdf = "CUDA:0",
+        device_tsdf = "cuda:0",
         device_torch = "cuda:1",
         img_size = (640, 480),
         num_obj_points_per_block = 16, # increase if you have more memory
         matcher=None
     ) -> None:
-        super().__init__(
+        super().__init__(flag_load,
             intrinsic, depth_scale, depth_max, voxel_size,
             block_resolution, block_count, device_tsdf, device_torch, img_size
         )

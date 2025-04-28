@@ -24,9 +24,9 @@ class BaseModel(nn.Module):
         self.model = module
 
     @torch.inference_mode()
-    def init_vocabulary(self, vocab=COCO_PANOPTIC_CLASSES + ["background"]):
+    def init_vocabulary(self, vocab=COCO_PANOPTIC_CLASSES + ["background"], device="cuda:0"):
         self.model.sem_seg_head.predictor.lang_encoder.get_text_embeddings(
-            vocab, is_eval=True
+            vocab, device, is_eval=True
         )
         metadata = MetadataCatalog.get('coco_2017_train_panoptic')
         self.model.metadata = metadata
@@ -40,9 +40,9 @@ class BaseModel(nn.Module):
         return res_list
 
     @torch.inference_mode()
-    def encode_text(self, texts):
+    def encode_text(self, texts, device):
         return self.model.sem_seg_head.predictor.lang_encoder.get_text_token_embeddings(
-            texts
+            texts, device
         )["class_emb"]
 
     def save_pretrained(self, save_dir):

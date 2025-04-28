@@ -2,6 +2,7 @@ import os.path as osp
 from openfusion.datasets import ICL, Replica, ScanNet, Kobuki, Live, RGBD
 
 BASE_PATH = osp.dirname(osp.dirname(osp.abspath(__file__)))
+# BASE_PATH = "/home/ycs/catkin_ws/src/goal_location_query/src"
 
 PARAMS = {
     "kobuki": {

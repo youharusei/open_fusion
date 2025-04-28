@@ -56,7 +56,8 @@ def main():
     parser.add_argument('--data', type=str, default="kobuki", help='Path to dir of dataset.')
     parser.add_argument('--scene', type=str, default="icra", help='Name of the scene in the dataset.')
     parser.add_argument('--frames', type=int, default=-1, help='Total number of frames to use. If -1, use all frames.')
-    parser.add_argument('--device', type=str, default="cuda")
+    parser.add_argument('--device_tsdf', type=str, default="cuda:0")
+    parser.add_argument('--device_torch', type=str, default="cuda:1")
     parser.add_argument('--live', action='store_true')
     parser.add_argument('--stream', action='store_true')
     parser.add_argument('--save', type=bool, default=False)
@@ -93,10 +94,10 @@ def main():
             dataset_loop(args, slam, dataset)
             if args.save:
                 slam.save(f"{args.data}_{args.scene}/{args.algo}.npz")
-
+    import pdb;pdb.set_trace()
     # NOTE: save point cloud
-    points, colors = slam.point_state.get_pc()
-    save_pc(points, colors, f"{args.data}_{args.scene}/color_pc.ply")
+    # points, colors = slam.point_state.get_pc()
+    # save_pc(points, colors, f"{args.data}_{args.scene}/color_pc.ply")
 
     # NOTE: save colorized mesh
     # mesh = slam.point_state.get_mesh()
@@ -104,15 +105,22 @@ def main():
     # o3d.io.write_triangle_mesh(f"{args.data}_{args.scene}/color_mesh.glb", mesh)
 
     # NOTE: modify below to play with query
+    QUERY_TEST = True
     if args.algo in ["cfusion", "vlfusion"]:
         # points, colors = slam.query("Window", topk=3)
         # points, colors = slam.query("there is a stainless steel fridge in the ketchen", topk=3)
-        points, colors = slam.semantic_query([
-            "table", "curtain", "wall", "floor", "ceiling", "door",
-            "room plant", "light", "wall paint", "chair", "person",
-            "road", "machine"], n_points=-1)
-        # show_pc(points, colors, slam.point_state.poses)
-        save_pc(points, colors, f"{args.data}_{args.scene}/semantic_pc.ply")
+        if not QUERY_TEST:
+            points, colors = slam.semantic_query(query=[
+                "table", "curtain", "wall", "floor", "ceiling", "door",
+                "room plant", "light", "wall paint", "chair", "person",
+                "corridor", "machine", "robot"], n_points=-1)
+            # show_pc(points, colors, slam.point_state.poses)
+            save_pc(points, colors, f"{args.data}_{args.scene}/semantic_pc.ply")
+        else:
+            points, colors = slam.semantic_query(query=["robot"], n_points=-1)
+            # show_pc(points, colors, slam.point_state.poses)
+            save_pc(points, colors, f"{args.data}_{args.scene}/semantic_pc_robot.ply")
+        
 
 if __name__ == "__main__":
     main()

@@ -56,8 +56,9 @@ class ImageAlignedModel(VLFM):
 
 
 class RegionAlignedModel(VLFM):
-    def __init__(self, name, **kwargs) -> None:
+    def __init__(self, device, name, **kwargs) -> None:
         super().__init__(name, **kwargs)
+        self.device = device
         if name == "seem":
             from openfusion.zoo.xdecoder_seem.model import BaseModel
             from openfusion.zoo.xdecoder_seem.xdecoder import build_model
@@ -67,8 +68,8 @@ class RegionAlignedModel(VLFM):
             opt = init_distributed(opt)
             self.model = BaseModel(opt, build_model(opt)).from_pretrained(
                 self.meta["checkpoint"]
-            ).eval().to("cuda:1")
-            self.model.init_vocabulary()
+            ).eval().to(self.device)
+            self.model.init_vocabulary(device=self.device)
         else:
             raise NotImplementedError
         print("[*] model loaded")
@@ -83,7 +84,7 @@ class RegionAlignedModel(VLFM):
 
     @torch.inference_mode()
     def encode_text(self, texts):
-        return self.model.encode_text(texts)
+        return self.model.encode_text(texts, self.device)
 
     def preprocess_image(self, rgb):
         images = [np.asarray(self.transform(Image.fromarray(i))) for i in rgb]
@@ -97,7 +98,7 @@ class RegionAlignedModel(VLFM):
     def encode_image(self, rgb, mode="default"):
         rgb_images = self.preprocess_image(rgb)
         assert rgb_images.shape[1] == 3
-        return self.model(rgb_images.to("cuda:1"), mode)
+        return self.model(rgb_images.to(self.device), mode)
 
 
 class PixelAlignedModel(VLFM):
@@ -114,10 +115,10 @@ class PixelAlignedModel(VLFM):
         pass
 
 
-def build_vl_model(name, **kwargs):
+def build_vl_model(device, name, **kwargs): 
     if name in MODELS:
         if name in RegionAlignedModel.model_names():
-            return RegionAlignedModel(name, **kwargs)
+            return RegionAlignedModel(device, name, **kwargs)
         else:
             raise ValueError(f"[*] model {name} not implemented")
     else:
