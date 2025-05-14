@@ -1,1 +1,0 @@
-catkin_make -DPYTHON_EXECUTABLE=/home/ycs/.conda/envs/open_fusion/bin/python

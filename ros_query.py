@@ -36,19 +36,24 @@ class LocationQueryServerROS(object):
     
     def goal_location_query_callback(self, request:GoalLocationQueryRequest):
         points = self.slam.fast_query(query=request.sematic_query, only_poi=True, topk=1, n_points=-1)
-        if points.size == 0: return GoalLocationQueryResponse(False, 0, 0, 0, 0)
+        if points.size == 0: return GoalLocationQueryResponse(False, 0, 0, 0, 0, 0, 0)
         x_min = np.amin(points[:,0])
         x_max = np.amax(points[:,0])
         y_min = np.amin(points[:,1])
         y_max = np.amax(points[:,1])
+        z_min = np.amin(points[:,1])
+        z_max = np.amax(points[:,1])
         x = (x_min + x_max)/2
         y = (y_min + y_max)/2
+        z = (z_min + z_max)/2
         range_x = x_max - x_min
         range_y = y_max - y_min
-        return GoalLocationQueryResponse(True, x, y, range_x, range_y)
+        range_z = z_max - z_min
+        return GoalLocationQueryResponse(True, x, y, z, range_x, range_y, range_z)
 
 def main():
     rospy.init_node("goal_location_server_node")
+    rospy.loginfo("[*] Initializing...")
     parser = argparse.ArgumentParser()
     parser.add_argument('--algo', type=str, default="vlfusion", choices=["default", "cfusion", "vlfusion"])
     parser.add_argument('--vl', type=str, default="seem", help="vlfm to use")
