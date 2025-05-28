@@ -446,10 +446,10 @@ class VLState(BaseState):
         cur_buf_indices = torch.utils.dlpack.from_dlpack(cur_buf_indices.to_dlpack()).to(self.device_torch)
         cur_buf_indices_cpu = cur_buf_indices.cpu()
         voxel_coords = torch.utils.dlpack.from_dlpack(voxel_coords.to_dlpack()).to(self.device_torch)
-        for cur_buf_indice_cpu in cur_buf_indices_cpu:
-            if abs(cur_buf_indice_cpu) > self.block_count:
-                torch.cuda.empty_cache()
-                return
+        # for cur_buf_indice_cpu in cur_buf_indices_cpu:
+        #     if abs(cur_buf_indice_cpu) > self.block_count:
+        #         torch.cuda.empty_cache()
+        #         return
         cur_keys = self.emb_keys[cur_buf_indices_cpu] # (N, O)
         cur_confs = self.emb_confs[cur_buf_indices_cpu] # (N, O)
         cur_coords = self.emb_coords[cur_buf_indices_cpu] # (N, O, 3)
@@ -515,6 +515,7 @@ class VLState(BaseState):
             caps = res_dict["caption"]
             # NOTE: no object detected
             if len(caps) == 0:
+                torch.cuda.empty_cache()
                 return
             # NOTE: obtain object-wise confidence images as res (H, W, X)
             obs_keys = res_dict["conf_idx"]

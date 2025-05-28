@@ -131,7 +131,7 @@ class BaseSLAM(object):
     def get_monitor_function(self, function, control_interval):
         def control_loop():
             setattr(self, f"{function.__name__}_step", 0)
-            # NOTE: reate a visualizer
+            # NOTE: create a visualizer
             self.vis = o3d.visualization.Visualizer()
             self.pcd = o3d.geometry.PointCloud()
             self.selected_pcd = o3d.geometry.PointCloud()
@@ -282,7 +282,7 @@ class VLSLAM(BaseSLAM):
 
     @torch.no_grad()
     def fast_query(
-        self, query="chair", points=None, colors=None, only_poi=False, topk=1, n_points=500000
+        self, query="chair", points=None, colors=None, only_poi=False, topk=1, n_points=-1
     ):
         """ perform sparse object query on the point cloud
 
@@ -447,7 +447,7 @@ def build_slam(args, intrinsic, params):
             intrinsic, params["depth_scale"], params["depth_max"],
             params["voxel_size"], params["block_resolution"], params["block_count"],
             device_tsdf=args.device_tsdf, device_torch=args.device_torch, img_size=params["input_size"],
-            matcher=HungarianMatcher(num_points=3600)
+            matcher=HungarianMatcher()
         )
         return VLSLAM(intrinsic, io, point_state, with_pose, params["input_size"], vl_model)
     else:

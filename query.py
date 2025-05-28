@@ -1,6 +1,5 @@
 import socket
 
-
 class Client():
     def __init__(self, host="127.0.0.1", port=4001, serv_host="127.0.0.1", serv_port=5000) -> None:
         self.host = host

@@ -44,7 +44,7 @@ class HungarianMatcher(nn.Module):
     there are more predictions than targets. In this case, we do a 1-to-1 matching of the best predictions,
     while the others are un-matched (and thus treated as non-objects).
     """
-    def __init__(self, cost_class:float=1, cost_mask:float=1, num_points:int=0):
+    def __init__(self, cost_class:float=1, cost_mask:float=1):
         """Creates the matcher
         Args:
             cost_class: This is the relative weight of the classification error in the matching cost
@@ -56,8 +56,6 @@ class HungarianMatcher(nn.Module):
         self.cost_mask = cost_mask
 
         assert cost_class != 0 or cost_mask != 0, "all costs cant be 0"
-
-        self.num_points = num_points
 
     @torch.no_grad()
     def forward(self, out_cap, out_mask, tgt_cap, tgt_mask):
@@ -81,25 +79,25 @@ class HungarianMatcher(nn.Module):
             "tgt_cap and tgt_mask must have same number of queries. but got {} and {}".format(tgt_cap.shape[0], tgt_mask.shape[0])
         num_queries = out_cap.shape[0]
 
-        # sim = torch.einsum(
-        #     "nc,mc->nm",
-        #     out_cap / out_cap.norm(dim=-1, keepdim=True),
-        #     tgt_cap / tgt_cap.norm(dim=-1, keepdim=True)
-        # )
+        sim = torch.einsum(
+            "nc,mc->nm",
+            out_cap / out_cap.norm(dim=-1, keepdim=True),
+            tgt_cap / tgt_cap.norm(dim=-1, keepdim=True)
+            )
         # Compute the classification cost. Contrary to the loss, we don't use the NLL,
         # but approximate it in 1 - proba[target class].
         # The 1 is a constant that doesn't change the matching, it can be ommitted.
-        # cost_class = sim
+        cost_class = sim
 
         cost_mask = soft_iou_jit(out_mask, tgt_mask)
 
         # cost matrix
-        C = self.cost_mask * cost_mask
+        C = self.cost_mask * cost_mask + self.cost_class * cost_class
         C = C.reshape(num_queries, -1).cpu()
         i, j = linear_sum_assignment(C, maximize=True)
 
         # filter matching with soft iou
-        # TODO: change to a better threshold
+        # TODO: change to a better threshold, default 0.1
         valid_mask = (pair_soft_iou_jit(out_mask[i], tgt_mask[j]) > 0.1).cpu()
         return (
             torch.as_tensor(i, dtype=torch.int64)[valid_mask],

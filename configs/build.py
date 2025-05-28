@@ -67,7 +67,7 @@ PARAMS = {
         "depth_max": 4.0,
         "voxel_size": 0.015,
         "block_resolution": 8,
-        "block_count": int(4e6),
+        "block_count": int(1e4),
         "img_size": (640,480),
         "input_size": (640,480)
     },
