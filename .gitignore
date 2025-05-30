@@ -17,6 +17,7 @@ openfusion/zoo/xdecoder_seem/checkpoints/*
 openai
 openfusion/zoo/detectron2
 rgbd_wuhu_1
+scene_graph*.json
 
 # compiled files #
 *.pyc

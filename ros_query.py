@@ -41,8 +41,8 @@ class LocationQueryServerROS(object):
         x_max = np.amax(points[:,0])
         y_min = np.amin(points[:,1])
         y_max = np.amax(points[:,1])
-        z_min = np.amin(points[:,1])
-        z_max = np.amax(points[:,1])
+        z_min = np.amin(points[:,2])
+        z_max = np.amax(points[:,2])
         x = (x_min + x_max)/2
         y = (y_min + y_max)/2
         z = (z_min + z_max)/2
