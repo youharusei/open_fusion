@@ -21,7 +21,7 @@ PARAMS = {
         "path": "{}/sample/icl/living_room/{}",
         "depth_scale": 5000.0,
         "depth_max": 5.0,
-        "voxel_size": 8.0 / 512,
+        "voxel_size": 5.0 / 512,
         "block_resolution": 8,
         "block_count": 20000,
         "img_size": (640,480),

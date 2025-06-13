@@ -10,7 +10,7 @@ from openfusion.utils import (
     show_pc, save_pc, get_cmap_legend
 )
 from configs.build import get_config
-
+import pdb
 
 def stream_loop(args, slam:BaseSLAM):
     if args.save:
@@ -42,7 +42,7 @@ def dataset_loop(args, slam:BaseSLAM, dataset:Dataset):
         rgb, depth = slam.io.from_file(rgb_path, depth_path)
         slam.io.update(rgb, depth, extrinsics)
         slam.vo()
-        slam.compute_state(encode_image=i%10==0)
+        slam.compute_state(encode_image=i%5==0)
         i += 1
     if args.live:
         slam.stop_query_thread()
@@ -94,34 +94,35 @@ def main():
             dataset_loop(args, slam, dataset)
             if args.save:
                 slam.save(f"{args.data}_{args.scene}/{args.algo}.npz")
-    import pdb;pdb.set_trace()
-    return
+    pdb.set_trace()
+    points, colors = slam.semantic_query(["chair", "table", "desk", "cabinet", "carton", "paper box", "potted plant", "bonsai", "ceiling", "floor", "houseplant", "door", "display", "monitor", "laptop", "notebook computer", "keyboard", "shelf"])
     # NOTE: save point cloud
-    # points, colors = slam.point_state.get_pc()
-    # save_pc(points, colors, f"{args.data}_{args.scene}/color_pc.ply")
+    points, colors = slam.point_state.get_pc()
+    save_pc(points, colors, f"{args.data}_{args.scene}/color_pc.ply")
 
     # NOTE: save colorized mesh
-    # mesh = slam.point_state.get_mesh()
-    # o3d.io.write_triangle_mesh(f"{args.data}_{args.scene}/color_mesh.ply", mesh)
-    # o3d.io.write_triangle_mesh(f"{args.data}_{args.scene}/color_mesh.glb", mesh)
+    mesh = slam.point_state.get_mesh()
+    o3d.io.write_triangle_mesh(f"{args.data}_{args.scene}/color_mesh.ply", mesh)
+    o3d.io.write_triangle_mesh(f"{args.data}_{args.scene}/color_mesh.glb", mesh)
 
     # NOTE: modify below to play with query
-    # QUERY_TEST = True
-    # if args.algo in ["cfusion", "vlfusion"]:
+    QUERY_TEST = False
+    if args.algo in ["cfusion", "vlfusion"]:
         # points, colors = slam.query("Window", topk=3)
         # points, colors = slam.query("there is a stainless steel fridge in the ketchen", topk=3)
-        # if not QUERY_TEST:
-        #     points, colors = slam.semantic_query(query=[
-        #         "table", "curtain", "wall", "floor", "ceiling", "door",
-        #         "room plant", "light", "wall paint", "chair", "person",
-        #         "corridor", "machine", "robot"], n_points=-1)
-        #     show_pc(points, colors, slam.point_state.poses)
-        #     save_pc(points, colors, f"{args.data}_{args.scene}/semantic_pc.ply")
-        # else:
-        #     points, colors = slam.semantic_query(query=["robot"])
-        #     show_pc(points, colors, slam.point_state.poses)
-        #     save_pc(points, colors, f"{args.data}_{args.scene}/semantic_pc_robot.ply")
-    
-
+        if not QUERY_TEST:
+            points, colors = slam.semantic_query(["sofa", "lamp", "light", "pillow", "display", "television", "cabinet", "wall", "ceiling", "floor", "painting", "door"])
+            points, colors = slam.semantic_query(["chair", "table", "desk", "cabinet", "carton", "paper box", "potted plant", "bonsai", "ceiling", "floor", "houseplant", "door", "display", "monitor", "laptop", "notebook computer", "keyboard", "shelf"])
+            points, colors = slam.semantic_query(query=[
+                "table", "curtain", "wall", "floor", "ceiling", "door",
+                "room plant", "light", "wall paint", "chair", "person",
+                "corridor", "machine", "robot", "desk", "display", "box","post"], n_points=-1)
+            # show_pc(points, colors, slam.point_state.poses)
+            save_pc(points, colors, f"{args.data}_{args.scene}/semantic_pc.ply")
+        else:
+            points, colors = slam.fast_query(query="fridge", topk=1)
+            show_pc(points, colors)
+            save_pc(points, colors, f"{args.data}_{args.scene}/semantic_pc_robot.ply")
+    return
 if __name__ == "__main__":
     main()

@@ -79,20 +79,20 @@ class HungarianMatcher(nn.Module):
             "tgt_cap and tgt_mask must have same number of queries. but got {} and {}".format(tgt_cap.shape[0], tgt_mask.shape[0])
         num_queries = out_cap.shape[0]
 
-        sim = torch.einsum(
-            "nc,mc->nm",
-            out_cap / out_cap.norm(dim=-1, keepdim=True),
-            tgt_cap / tgt_cap.norm(dim=-1, keepdim=True)
-            )
+        # sim = torch.einsum(
+        #     "nc,mc->nm",
+        #     out_cap / out_cap.norm(dim=-1, keepdim=True),
+        #     tgt_cap / tgt_cap.norm(dim=-1, keepdim=True)
+        #     )
         # Compute the classification cost. Contrary to the loss, we don't use the NLL,
         # but approximate it in 1 - proba[target class].
         # The 1 is a constant that doesn't change the matching, it can be ommitted.
-        cost_class = sim
+        # cost_class = sim
 
         cost_mask = soft_iou_jit(out_mask, tgt_mask)
 
         # cost matrix
-        C = self.cost_mask * cost_mask + self.cost_class * cost_class
+        C = self.cost_mask * cost_mask
         C = C.reshape(num_queries, -1).cpu()
         i, j = linear_sum_assignment(C, maximize=True)
 

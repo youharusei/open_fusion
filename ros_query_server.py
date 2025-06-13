@@ -1,3 +1,4 @@
+#! /home/ycs/.conda/envs/open_fusion/bin/python
 """ 
 ROS node of goal location query server.
 load the tsdf and embedding dict in the manner of main.py,
@@ -10,10 +11,11 @@ response:
     bool success
     float location x
     float location y
+    float location z
     float size range_x
     float size range_y
+    float size range_z
 """
-#! /home/ycs/.conda/envs/open_fusion/bin/python
 import sys
 sys.path.append('~/catkin_ws/src/goal_location_query/src')
 import argparse
@@ -25,9 +27,13 @@ import open3d as o3d
 from openfusion.slam import build_slam, BaseSLAM
 from openfusion.datasets import Dataset
 from configs.build import get_config
-
+from openfusion.utils import (
+    show_pc, save_pc, get_cmap_legend
+)
 import rospy
 from goal_location_query.srv import GoalLocationQuery, GoalLocationQueryRequest, GoalLocationQueryResponse
+
+DBG = False
 
 class LocationQueryServerROS(object):
     def __init__(self, slam:BaseSLAM):
@@ -35,7 +41,11 @@ class LocationQueryServerROS(object):
         self.service = rospy.Service("goal_location_query", GoalLocationQuery, self.goal_location_query_callback)
     
     def goal_location_query_callback(self, request:GoalLocationQueryRequest):
-        points = self.slam.fast_query(query=request.sematic_query, only_poi=True, topk=1, n_points=-1)
+        if DBG:
+            points, colors = self.slam.fast_query(query=request.sematic_query, only_poi=False, topk=1, n_points=-1)
+            show_pc(points, colors)
+        else:
+            points = self.slam.fast_query(query=request.sematic_query, only_poi=True, topk=1, n_points=-1)
         if points.size == 0: return GoalLocationQueryResponse(False, 0, 0, 0, 0, 0, 0)
         x_min = np.amin(points[:,0])
         x_max = np.amax(points[:,0])

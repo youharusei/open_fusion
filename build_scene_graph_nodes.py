@@ -55,7 +55,11 @@ def main():
     mask_key = emb_keys[buf_indices.cpu()].view(-1, num_obj_points_per_block)
     valid_keys = torch.unique(mask_key)
     valid_embed = emb_dict[valid_keys]
-
+    mask_pred_caption = valid_embed / (valid_embed.norm(dim=-1, keepdim=True) + 1e-7) # (E, D)
+    BACK_GROUND = ["floor", "ground", "roof", "rooftree", "ceiling", "wall", "wallpaper"]
+    embed_background = slam.vl_model.encode_prompt(BACK_GROUND, task="default")
+    embed_background = embed_background / (embed_background.norm(dim=-1, keepdim=True) + 1e-7)
+    
     # calculate the position and bounding box of every object
     object_centers = list()
     object_ranges = list()
@@ -63,14 +67,15 @@ def main():
 
     if DBG:
         points_world, colors_world = slam.point_state.get_pc()
-    key_indice : int = 0
-    for key_id in valid_keys:
+    key_indice : int = 0 # the 0 object is always 0, skip
+    for key_id in tqdm(valid_keys):
         # find the location of the key
         key_loc = torch.zeros_like(mask_key).bool()
         key_loc |= mask_key == key_id
         # find the points with the location of the key as indices
         points = world_coords[key_loc.unsqueeze(-1).repeat(1,1,3)].view(-1,3).numpy()
-        if points.shape[0] < 32:
+        mask_cls = torch.einsum("cd,nd->cn", mask_pred_caption[key_indice].unsqueeze(0).cuda(), embed_background)
+        if points.shape[0] < 32 or mask_cls.max() > 0.15:
             key_indice += 1
             continue
         if DBG:
@@ -87,11 +92,11 @@ def main():
         # NOTE: assume object_id to be same with the indice of object_*
         object_centers.append([(x_min + x_max)/2, (y_min + y_max)/2, (z_min + z_max)/2])
         object_ranges.append([x_max - x_min, y_max - y_min, z_max - z_min])
-        object_embeds.append(valid_embed[key_indice])
+        object_embeds.append(valid_embed[key_indice].numpy())
         key_indice += 1
     object_id : int = 0
     object_nodes = []
-    for object_embed in object_embeds:
+    for object_embed in tqdm(object_embeds):
         object_node = {
             "object_id": object_id,
             "object_center": np.round(object_centers[object_id], 2).tolist(),
@@ -99,13 +104,12 @@ def main():
             # "object_tag":
             # "object_caption":
         }
-        pdb.set_trace()
         object_nodes.append(object_node)
         object_id += 1
-    with open("scene_graph_nodes.json", "w") as f:
+    with open(f"{args.data}_{args.scene}/scene_graph_nodes.json", "w") as f:
         json.dump(object_nodes, f, indent=4)
         f.close()
-    pdb.set_trace()
+    np.savez(f"{args.data}_{args.scene}/object_embeds.npz", object_embeds = object_embeds)
     return
 
 if __name__ == "__main__":

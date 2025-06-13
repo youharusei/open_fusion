@@ -2,7 +2,8 @@ import json
 import numpy as np
 import torch
 import pdb
-def calculate_3d_iou(box1:tuple, box2:tuple, padding = 0.5):
+import argparse
+def calculate_3d_iou(box1:tuple, box2:tuple, padding = 0.0):
     """
     计算两个三维包围盒的交并比(IoU)
     参数:
@@ -41,7 +42,12 @@ def calculate_embedding_similarity():
     pass
 
 def main():
-    with open("scene_graph_nodes.json", "r") as f:
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--data', type=str, default="kobuki", help='Path to dir of dataset.')
+    parser.add_argument('--scene', type=str, default="icra", help='Name of the scene in the dataset.')
+    args = parser.parse_args()
+
+    with open(f"{args.data}_{args.scene}/scene_graph_nodes.json", "r") as f:
         object_nodes: list = json.load(f)
         f.close()
     n = object_nodes.__len__()
@@ -54,14 +60,14 @@ def main():
             if iou_ij > 0.01:
                 graph_edge = {
                     "related_nodes_id": [i, j],
-                    "relationship": f"object {i} is close to object {j}"
+                    "rough_relationship": f"object {i} is close to object {j}"
                 }
                 graph_edges.append(graph_edge)
     scene_graph = {
         "object_nodes": object_nodes,
         "graph_edges":graph_edges
     }
-    with open("scene_graph.json", "w") as f:
+    with open(f"{args.data}_{args.scene}/scene_graph.json", "w") as f:
         json.dump(scene_graph, f, indent=2)
         f.close()
 

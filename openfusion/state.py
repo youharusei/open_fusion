@@ -14,7 +14,7 @@ try:
     DBG = False
 except:
     print("[*] torchshow not found")
-
+import pdb
 
 class BaseState(object):
     def __init__(
@@ -580,12 +580,11 @@ class VLState(BaseState):
             key_offset = len(self.emb_dict)
             unmatched_keys = [k for k in reversed(range(1,res.shape[-1]+1)) if k not in res_match_key]
 
-            if DBG:
-                print("unmatched: ", unmatched_keys)
-                ts.show(res.permute(2,0,1)[torch.tensor(unmatched_keys)-1], suptitle=f"unmatched")
-
             # NOTE: when unmatched, register obs_keys as new keys
             if unmatched_keys:
+                if DBG:
+                    print("unmatched: ", unmatched_keys)
+                    ts.show(res.permute(2,0,1)[torch.tensor(unmatched_keys)-1], suptitle=f"unmatched")
                 for i, k in enumerate(unmatched_keys):
                     if DBG:
                         print(f"{k} -> {key_offset + i}")
@@ -775,6 +774,7 @@ class VLState(BaseState):
 
     @torch.no_grad()
     def semantic_query(self, t_emb, points, colors=None, cmap=None):
+        pdb.set_trace()
         buf_indices = self.world.hashmap().active_buf_indices()
         buf_indices = torch.utils.dlpack.from_dlpack(buf_indices.to_dlpack()).cpu()
         torch.cuda.empty_cache()
